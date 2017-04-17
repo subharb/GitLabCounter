@@ -33,5 +33,13 @@ class TestGitLabCounter(unittest.TestCase):
         self.assertEqual(dateObject.month, int(4))
         self.assertEqual(dateObject.day, int(4))
 
+    def test_getInfoIssue(self):
+        starter.getInfoIssue()
+
+    def test_updateIssue(self):
+        issueId = 233;
+        data = "due_date=2017-02-27"
+        result = starter.updateIssue(issueId, data)
+
 if __name__ == '__main__':
     unittest.main()
