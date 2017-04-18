@@ -7,14 +7,18 @@ from datetime import datetime
 import re
 from datetime import datetime
 
+#Methods that connect with external sources
+def postOnSlack(string):
+    payload={"channel": "#gitlab-notifications", "username": "Blamer", "text": string, "icon_emoji": ":japanese_ogre:"}
+    r = requests.post("https://hooks.slack.com/services/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", json=payload)
+
 def updateIssue(issueId, data):
-    
     headers = {"PRIVATE-TOKEN": "Uz6PgmkmEiZ3yHvWX8D9"}
     r = requests.put("http://git.augmentedworkforce.com/api/v3/projects/17/issues/"+str(issueId)+"?"+data, headers=headers)
     #r.encoding = "ISO-8859-1"
     newJson = json.loads(r.text)
 
-    print(newJson)
+    return newJson
 
 def getClosedIssues():
     #Queries Gitlab API for closed issues of our project
@@ -37,18 +41,12 @@ def getClosedIssues():
         page += 1
         if(len(newJson) < numberItems):
             endLoop = True
-        
-        
-        '''if(page==3):
-            print(json.dumps(finalJson, indent=4, sort_keys=True))
-            return
-'''
     
     return finalJson
 
-def getInfoIssue():
+def getInfoIssue(issueId):
     headers = {"PRIVATE-TOKEN": "Uz6PgmkmEiZ3yHvWX8D9"}
-    r = requests.get("https://git.augmentedworkforce.com/api/v3/projects/17/issues/76", headers=headers)
+    r = requests.get("https://git.augmentedworkforce.com/api/v3/projects/17/issues/"+str(issueId), headers=headers)
     r.encoding = "ISO-8859-1"
     print(json.loads(r.text))
     
@@ -70,13 +68,39 @@ def countPoints(issue):
         points["estimated"] = points["done"]
     return points
 
-def addDueDate():
+def fixAllDueDates():
     jsonIssues = getClosedIssues() 
     for issue in jsonIssues:
-        #If there's no due date we set it as the closest Monday of the updated date
-        if(issue["due_date"] is None):
-            print(issue["title"]+" : "+str(issue["id"])+" - "+issue["updated_at"])    
+        addDueDate(issue)
 
+def blameDueDates():
+    dictPeople = {"smartipo" : "@smartipo", "Angela" : "@aruiztej", "Elena" : "@elenavj", "Merixell" : "@meritxell"}
+    jsonIssues = getClosedIssues() 
+    textToBlame = ""
+    for issue in jsonIssues:
+        if(issue["due_date"] is None):
+            if(issue["assignee"]["name"] in dictPeople):
+                user = "<"+dictPeople[issue["assignee"]["name"]]+">"
+            else:
+                user = issue["assignee"]["name"]
+
+            textToBlame += user+": la tarea _"+issue["title"]+"_ no tiene due date, <"+issue["web_url"]+"| pincha aqui>\n"
+            #textToBlame += "{user}: la tarea _{title}_ no tiene due date, <{web_url}}| pincha aquí>".format(user=user,title=issue["title"], web_url=issue["web_url"])
+
+    postOnSlack(textToBlame)
+
+def addDueDate(issue):
+    #If there's no due date we set it as the closest Monday of the updated date
+    if(issue["due_date"] is None):
+        updated = datetime.strptime(issue["updated_at"], "%Y-%m-%dT%H:%M:%S.%fZ")
+        print(issue["title"]+" : "+updated.strftime('%Y-%m-%d')+" - "+issue["updated_at"])    
+        data = "due_date="+updated.strftime('%Y-%m-%d')
+        updateIssue(issue["id"], data)
+
+def printAllClosedIssues():
+    jsonIssues = getClosedIssues() 
+    print(json.dumps(jsonIssues, indent=4, sort_keys=True))   
+        
 def start():
     #We only run it on Mondays
     if(datetime.now().weekday() != 0):
@@ -97,4 +121,5 @@ def start():
     print("Estimate: "+str(estimatedPoints))
 if __name__ == '__main__':
     #start()
-    addDueDate()
+    blameDueDates()
+    #addDueDate()
