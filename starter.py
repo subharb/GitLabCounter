@@ -6,8 +6,19 @@ from pprint import pprint
 from datetime import datetime
 import re
 from datetime import datetime
+from config import config 
 
 #Methods that connect with external sources
+
+def getDoingIssues():
+    openedIssuesJson = getIssues(False)
+    listDoingIssues = []
+    for issue in openedIssuesJson:
+        if(issue["labels"] in "Doing"):
+            listDoingIssues.append(issue)
+
+    return listDoingIssues
+
 def postOnSlack(string):
     payload={"channel": "#gitlab-notifications", "username": "Blamer", "text": string, "icon_emoji": ":japanese_ogre:"}
     r = requests.post("https://hooks.slack.com/services/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", json=payload)
@@ -20,8 +31,13 @@ def updateIssue(issueId, data):
 
     return newJson
 
-def getClosedIssues():
-    #Queries Gitlab API for closed issues of our project
+def getIssues(closed):
+    #Queries Gitlab API for closed/open issues of our project
+    if(closed):
+        typeQuery = "closed"
+    else:
+        typeQuery = "opened"
+
     finalJson = json.loads("[]")
     endLoop = False
     #It Requires pagination to get all issues
@@ -29,8 +45,8 @@ def getClosedIssues():
     numberItems = 50
     while not endLoop:
         headers = {"PRIVATE-TOKEN": "Uz6PgmkmEiZ3yHvWX8D9"}
-        r = requests.get("http://git.augmentedworkforce.com/api/v3/projects/17/issues?page="+str(page)+"&per_page="+str(numberItems)+"&state=closed&order_by=updated_at&sort=asc", headers=headers)
-        r.encoding = "ISO-8859-1"
+        r = requests.get("http://git.augmentedworkforce.com/api/v3/projects/17/issues?page="+str(page)+"&per_page="+str(numberItems)+"&state="+typeQuery+"&order_by=updated_at&sort=asc", headers=headers)
+        r.encoding = "utf-8"
         newJson = json.loads(r.text)
         if(len(finalJson) > 0):
             for element in newJson:
@@ -69,13 +85,13 @@ def countPoints(issue):
     return points
 
 def fixAllDueDates():
-    jsonIssues = getClosedIssues() 
+    jsonIssues = getIssues(True) 
     for issue in jsonIssues:
         addDueDate(issue)
 
 def blameDueDates():
     dictPeople = {"smartipo" : "@smartipo", "Angela" : "@aruiztej", "Elena" : "@elenavj", "Merixell" : "@meritxell"}
-    jsonIssues = getClosedIssues() 
+    jsonIssues = getIssues(True) 
     textToBlame = ""
     for issue in jsonIssues:
         if(issue["due_date"] is None):
@@ -84,8 +100,8 @@ def blameDueDates():
             else:
                 user = issue["assignee"]["name"]
 
-            textToBlame += user+": la tarea _"+issue["title"]+"_ no tiene due date, <"+issue["web_url"]+"| pincha aqui>\n"
-            #textToBlame += "{user}: la tarea _{title}_ no tiene due date, <{web_url}}| pincha aquí>".format(user=user,title=issue["title"], web_url=issue["web_url"])
+            #textToBlame += user+": la tarea _"+issue["title"]+"_ no tiene due date, <"+issue["web_url"]+"| pincha aquí>\n"
+            textToBlame += "{user}: la tarea _{title}_ no tiene due date, <{web_url}| pincha aquí>\n".format(user=user,title=issue["title"], web_url=issue["web_url"])
 
     postOnSlack(textToBlame)
 
@@ -98,28 +114,68 @@ def addDueDate(issue):
         updateIssue(issue["id"], data)
 
 def printAllClosedIssues():
-    jsonIssues = getClosedIssues() 
+    jsonIssues = getIssues(True) 
+    print(json.dumps(jsonIssues, indent=4, sort_keys=True))  
+
+def printAllOpenIssues():
+    jsonIssues = getIssues(False) 
     print(json.dumps(jsonIssues, indent=4, sort_keys=True))   
-        
+
+def countAllSprints():
+    #Loops through all issues and calculates the points of each of the sprints
+    dictSprints = {}
+    jsonIssues = getIssues(True)   
+
+    for issue in jsonIssues:
+        #Check what sprint an issue belongs to
+        dueDate = issue["due_date"]
+        print(dueDate)
+        if(dueDate is not None):
+            dictPoints = countPoints(issue)
+            #Add the points of that sprint
+            if(dueDate in dictSprints):
+                dictSprints[dueDate]["estimated"] += dictPoints["estimated"]
+                dictSprints[dueDate]["done"] += dictPoints["done"]
+            else:
+                #Create a key with the date of the sprint
+                dictSprints["{}".format(dueDate)] = {}
+                dictSprints["{}".format(dueDate)]["estimated"] = dictPoints["estimated"]
+                dictSprints["{}".format(dueDate)]["done"] = dictPoints["done"]
+    pprint(dictSprints)   
+
+def printIssuesFromSprint(dateSprint):
+    jsonIssues = getIssues(True) 
+    listIssues = []
+    for issue in jsonIssues:
+        if(issue["due_date"] == dateSprint):
+            pprint(issue)
+
+
 def start():
     #We only run it on Mondays
-    if(datetime.now().weekday() != 0):
-        return
-    jsonIssues = getClosedIssues()   
+    #if(datetime.now().weekday() != 0):
+    #    print("Today is not Monday!")
+    #    return
+    jsonIssues = getClosedIssues(True)   
     estimatedPoints = 0
     donePoints = 0 
     for issue in jsonIssues:
         #If the issue was closed last week I process it
-        dateClosed = datetime.strptime(issue["due_date"], "%Y-%m-%d")
-        diff = datetime.now() - dateClosed
-        if(diff.days < 7):
-            pointsC = countPoints(issue)
-            estimatedPoints += pointsC["estimated"]
-            donePoints += pointsC["done"]        
+        if(issue["due_date"] is not None):
+            dateClosed = datetime.strptime(issue["due_date"], "%Y-%m-%d")
+            diff = datetime.now() - dateClosed
+            if(diff.days < 7):
+                pointsC = countPoints(issue)
+                estimatedPoints += pointsC["estimated"]
+                donePoints += pointsC["done"]          
+        #else:
+            #print("{title} no hay due date".format(title=issue["title"]))
 
     print("Done: "+str(donePoints))
     print("Estimate: "+str(estimatedPoints))
+
 if __name__ == '__main__':
     #start()
-    blameDueDates()
+    getDoingIssues()
+    #printIssuesFromSprint("2017-03-28")
     #addDueDate()

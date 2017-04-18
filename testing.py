@@ -6,7 +6,7 @@ from datetime import datetime
 class TestGitLabCounter(unittest.TestCase):
 
     def test_getClosedIssues(self):
-        jsonTest = starter.getClosedIssues()
+        jsonTest = starter.getIssues(True)
         self.assertGreater(len(jsonTest), 1)
 
     def test_countPoints(self):
@@ -34,7 +34,7 @@ class TestGitLabCounter(unittest.TestCase):
         self.assertEqual(dateObject.day, int(4))
 
     def test_getInfoIssue(self):
-        issue = starter.getInfoIssue(175)
+        issue = starter.getInfoIssue(176)
         print(json.dumps(issue, indent=4, sort_keys=True))
 
     def test_updateIssue(self):
