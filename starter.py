@@ -20,7 +20,7 @@ def getDoingIssues():
     return listDoingIssues
 
 def postOnSlack(string):
-    payload={"channel": "#gitlab-notifications", "username": "Blamer", "text": string, "icon_emoji": ":japanese_ogre:"}
+    payload={"channel": config.SLACK_CHANNEL, "username": "Blamer", "text": string, "icon_emoji": ":japanese_ogre:"}
     r = requests.post(config.SLACK_URL, json=payload)
 
 def updateIssue(issueId, data):
