@@ -7,14 +7,14 @@ from datetime import datetime
 import re
 from datetime import datetime
 from config import config 
+from optparse import OptionParser
 
 #Methods that connect with external sources
-
 def getDoingIssues():
     openedIssuesJson = getIssues(False)
     listDoingIssues = []
     for issue in openedIssuesJson:
-        if(issue["labels"] in "Doing"):
+        if("Doing" in issue["labels"]):
             listDoingIssues.append(issue)
 
     return listDoingIssues
@@ -90,19 +90,34 @@ def fixAllDueDates():
         addDueDate(issue)
 
 def blameDueDates():
-    dictPeople = {"smartipo" : "@smartipo", "Angela" : "@aruiztej", "Elena" : "@elenavj", "Merixell" : "@meritxell"}
+    #Finds closed issues than dont have a dueDate
     jsonIssues = getIssues(True) 
     textToBlame = ""
     for issue in jsonIssues:
         if(issue["due_date"] is None):
             if(issue["assignee"]["name"] in dictPeople):
-                user = "<"+dictPeople[issue["assignee"]["name"]]+">"
+                user = "<"+config.TEAM_MEMBERS[issue["assignee"]["name"]]+">"
             else:
                 user = issue["assignee"]["name"]
 
             #textToBlame += user+": la tarea _"+issue["title"]+"_ no tiene due date, <"+issue["web_url"]+"| pincha aquí>\n"
-            textToBlame += "{user}: la tarea _{title}_ no tiene due date, <{web_url}| pincha aquí>\n".format(user=user,title=issue["title"], web_url=issue["web_url"])
+            textToBlame += "{user}: la tarea _{title}_ no tiene due date, <{web_url}| pincha aquí> para solucionarlo\n".format(user=user,title=issue["title"], web_url=issue["web_url"])
 
+    postOnSlack(textToBlame)
+
+def blameDoingIssues():
+    issues = getDoingIssues()
+    textToBlame = ""
+    for issue in issues:
+        if(issue["assignee"] is not None):
+            noPt = False
+            for label in issue["labels"]:
+                if("pt" in label):
+                    noPt = True
+            if(not noPt):
+                textToBlame += "{user}: la tarea _{title}_ no tiene puntos estimados, <{web_url}| pincha aquí> para solucionarlo\n".format(user="<"+config.TEAM_MEMBERS[issue["assignee"]["name"]]+">",title=issue["title"], web_url=issue["web_url"])
+        else:
+            textToBlame += "Equipo, la tarea _{title}_ no está asignada a nadie, <{web_url}| pinchad aquí> para solucionarlo\n".format(title=issue["title"], web_url=issue["web_url"])
     postOnSlack(textToBlame)
 
 def addDueDate(issue):
@@ -129,7 +144,6 @@ def countAllSprints():
     for issue in jsonIssues:
         #Check what sprint an issue belongs to
         dueDate = issue["due_date"]
-        print(dueDate)
         if(dueDate is not None):
             dictPoints = countPoints(issue)
             #Add the points of that sprint
@@ -151,12 +165,12 @@ def printIssuesFromSprint(dateSprint):
             pprint(issue)
 
 
-def start():
+def calculateCurrentSprint():
     #We only run it on Mondays
     #if(datetime.now().weekday() != 0):
     #    print("Today is not Monday!")
     #    return
-    jsonIssues = getClosedIssues(True)   
+    jsonIssues = getIssues(True)   
     estimatedPoints = 0
     donePoints = 0 
     for issue in jsonIssues:
@@ -174,8 +188,23 @@ def start():
     print("Done: "+str(donePoints))
     print("Estimate: "+str(estimatedPoints))
 
+def main():
+    parser = OptionParser(usage="usage: %prog [options] filename",
+                          version="%prog 1.0")
+    parser.add_option("-m","--method",dest="method",help="The name of the method to be executed, calculateCurrentSprint, countAllSprints, blameDoingIssues, blameDueDates")
+
+    (options, args) = parser.parse_args() 
+
+    print("Executing "+options.method)
+
+    result = {
+      'calculateCurrentSprint' : calculateCurrentSprint,
+      'countAllSprints': countAllSprints,
+      'blameDoingIssues': blameDoingIssues
+      'blameDueDates': blameDueDates
+    }
+
+    result[options.method]()
+    
 if __name__ == '__main__':
-    #start()
-    getDoingIssues()
-    #printIssuesFromSprint("2017-03-28")
-    #addDueDate()
+    main()
