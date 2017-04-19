@@ -147,14 +147,12 @@ def countAllSprints():
         if(dueDate is not None):
             dictPoints = countPoints(issue)
             #Add the points of that sprint
-            if(dueDate in dictSprints):
-                dictSprints[dueDate]["estimated"] += dictPoints["estimated"]
-                dictSprints[dueDate]["done"] += dictPoints["done"]
-            else:
-                #Create a key with the date of the sprint
-                dictSprints["{}".format(dueDate)] = {}
-                dictSprints["{}".format(dueDate)]["estimated"] = dictPoints["estimated"]
-                dictSprints["{}".format(dueDate)]["done"] = dictPoints["done"]
+            tempDict = {"estimated" : 0, "done" : 0} if dueDate not in dictSprints else dictSprints[dueDate]
+            tempDict["estimated"] += dictPoints["estimated"]
+            tempDict["done"] += dictPoints["done"]
+
+            dictSprints[dueDate] = tempDict
+
     pprint(dictSprints)   
 
 def printIssuesFromSprint(dateSprint):
