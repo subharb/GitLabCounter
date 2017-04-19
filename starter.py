@@ -165,42 +165,49 @@ def printIssuesFromSprint(dateSprint):
             pprint(issue)
 
 
-def calculateCurrentSprint():
+def calculateClosingSprint():
     #We only run it on Mondays
     #if(datetime.now().weekday() != 0):
     #    print("Today is not Monday!")
     #    return
     jsonIssues = getIssues(True)   
     estimatedPoints = 0
-    donePoints = 0 
+    donePoints = 0
+    dictTeamMembers = {}
     for issue in jsonIssues:
-        #If the issue was closed last week I process it
         if(issue["due_date"] is not None):
             dateClosed = datetime.strptime(issue["due_date"], "%Y-%m-%d")
             diff = datetime.now() - dateClosed
-            if(diff.days < 7):
+            # If the issue was belongs on this closing sprint we process it
+            if(diff.days <= 7):
                 pointsC = countPoints(issue)
                 estimatedPoints += pointsC["estimated"]
-                donePoints += pointsC["done"]          
-        #else:
-            #print("{title} no hay due date".format(title=issue["title"]))
+                donePoints += pointsC["done"]
+                tempDict = {} if issue["assignee"]["name"] not in dictTeamMembers else dictTeamMembers[issue["assignee"]["name"]]
+                tempDict["estimated"] = pointsC["estimated"]
+                tempDict["done"] = pointsC["done"]
+                dictTeamMembers[issue["assignee"]["name"]] = tempDict
 
-    print("Done: "+str(donePoints))
-    print("Estimate: "+str(estimatedPoints))
+    stringMembers = ""
+
+    for key, value in dictTeamMembers.items():
+        stringMembers += config.TEAM_MEMBERS[key]+": *"+str(dictTeamMembers[key]["estimated"])+"pts estimados*,  *"+str(dictTeamMembers[key]["done"])+" pts hechos*\n"
+
+    postOnSlack("Atención, estas son las métricas de esta semana:\n *Tareas hechas: "+str(donePoints)+" puntos*\n *Estimadas: "+str(estimatedPoints)+"puntos*\n"+stringMembers)
 
 def main():
     parser = OptionParser(usage="usage: %prog [options] filename",
                           version="%prog 1.0")
-    parser.add_option("-m","--method",dest="method",help="The name of the method to be executed, calculateCurrentSprint, countAllSprints, blameDoingIssues, blameDueDates")
+    parser.add_option("-m","--method",dest="method",help="The name of the method to be executed, calculateClosingSprint, countAllSprints, blameDoingIssues, blameDueDates")
 
     (options, args) = parser.parse_args() 
 
     print("Executing "+options.method)
 
     result = {
-      'calculateCurrentSprint' : calculateCurrentSprint,
+      'calculateClosingSprint' : calculateClosingSprint,
       'countAllSprints': countAllSprints,
-      'blameDoingIssues': blameDoingIssues
+      'blameDoingIssues': blameDoingIssues,
       'blameDueDates': blameDueDates
     }
 
