@@ -2,6 +2,7 @@ import unittest
 import starter
 import json
 from datetime import datetime
+from pprint import pprint
 
 class TestGitLabCounter(unittest.TestCase):
 
@@ -34,8 +35,8 @@ class TestGitLabCounter(unittest.TestCase):
         self.assertEqual(dateObject.day, int(4))
 
     def test_getInfoIssue(self):
-        issue = starter.getInfoIssue(176)
-        print(json.dumps(issue, indent=4, sort_keys=True))
+        issue = starter.getInfoIssue(323)        
+        self.assertEqual(issue["project_id"], 17)
 
     def test_updateIssue(self):
         issueId = 175;

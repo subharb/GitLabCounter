@@ -21,11 +21,11 @@ def getDoingIssues():
 
 def postOnSlack(string):
     payload={"channel": "#gitlab-notifications", "username": "Blamer", "text": string, "icon_emoji": ":japanese_ogre:"}
-    r = requests.post("https://hooks.slack.com/services/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", json=payload)
+    r = requests.post(config.SLACK_URL, json=payload)
 
 def updateIssue(issueId, data):
     headers = {"PRIVATE-TOKEN": "Uz6PgmkmEiZ3yHvWX8D9"}
-    r = requests.put("http://git.augmentedworkforce.com/api/v3/projects/17/issues/"+str(issueId)+"?"+data, headers=headers)
+    r = requests.put(config.GITLAB_URL+"/issues/"+str(issueId)+"?"+data, headers=headers)
     #r.encoding = "ISO-8859-1"
     newJson = json.loads(r.text)
 
@@ -45,7 +45,7 @@ def getIssues(closed):
     numberItems = 50
     while not endLoop:
         headers = {"PRIVATE-TOKEN": "Uz6PgmkmEiZ3yHvWX8D9"}
-        r = requests.get("http://git.augmentedworkforce.com/api/v3/projects/17/issues?page="+str(page)+"&per_page="+str(numberItems)+"&state="+typeQuery+"&order_by=updated_at&sort=asc", headers=headers)
+        r = requests.get(config.GITLAB_URL+"/issues?page="+str(page)+"&per_page="+str(numberItems)+"&state="+typeQuery+"&order_by=updated_at&sort=asc", headers=headers)
         r.encoding = "utf-8"
         newJson = json.loads(r.text)
         if(len(finalJson) > 0):
@@ -61,10 +61,9 @@ def getIssues(closed):
     return finalJson
 
 def getInfoIssue(issueId):
-    headers = {"PRIVATE-TOKEN": "Uz6PgmkmEiZ3yHvWX8D9"}
-    r = requests.get("https://git.augmentedworkforce.com/api/v3/projects/17/issues/"+str(issueId), headers=headers)
+    r = requests.get(config.GITLAB_URL+"issues/"+str(issueId), headers=config.HEADERS_GITLAB)
     r.encoding = "ISO-8859-1"
-    print(json.loads(r.text))
+    return json.loads(r.text)
     
 def getRawNumberPoints(string):
     #Deletes letters from label
@@ -193,10 +192,14 @@ def calculateClosingSprint():
 
     postOnSlack("Atención, estas son las métricas de esta semana:\n *Tareas hechas: "+str(donePoints)+" puntos*\n *Estimadas: "+str(estimatedPoints)+"puntos*\n"+stringMembers)
 
+def dailyIssuesCheck():
+    blameDoingIssues()
+    blameDueDates()
+
 def main():
     parser = OptionParser(usage="usage: %prog [options] filename",
                           version="%prog 1.0")
-    parser.add_option("-m","--method",dest="method",help="The name of the method to be executed, calculateClosingSprint, countAllSprints, blameDoingIssues, blameDueDates")
+    parser.add_option("-m","--method",dest="method",help="The name of the method to be executed, calculateClosingSprint, countAllSprints, dailyIssuesCheck")
 
     (options, args) = parser.parse_args() 
 
@@ -205,8 +208,7 @@ def main():
     result = {
       'calculateClosingSprint' : calculateClosingSprint,
       'countAllSprints': countAllSprints,
-      'blameDoingIssues': blameDoingIssues,
-      'blameDueDates': blameDueDates
+      'dailyIssuesCheck': dailyIssuesCheck
     }
 
     result[options.method]()
