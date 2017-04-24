@@ -180,9 +180,9 @@ def calculateClosingSprint():
                 pointsC = countPoints(issue)
                 estimatedPoints += pointsC["estimated"]
                 donePoints += pointsC["done"]
-                tempDict = {} if issue["assignee"]["name"] not in dictTeamMembers else dictTeamMembers[issue["assignee"]["name"]]
-                tempDict["estimated"] = pointsC["estimated"]
-                tempDict["done"] = pointsC["done"]
+                tempDict = {"estimated" : 0, "done" : 0} if issue["assignee"]["name"] not in dictTeamMembers else dictTeamMembers[issue["assignee"]["name"]]
+                tempDict["estimated"] += pointsC["estimated"]
+                tempDict["done"] += pointsC["done"]
                 dictTeamMembers[issue["assignee"]["name"]] = tempDict
 
     stringMembers = ""
@@ -214,4 +214,5 @@ def main():
     result[options.method]()
     
 if __name__ == '__main__':
+    #print(u"€")
     main()
