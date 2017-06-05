@@ -93,15 +93,15 @@ def blameDueDates():
     jsonIssues = getIssues(True) 
     textToBlame = ""
     for issue in jsonIssues:
-        if(issue["due_date"] is None):
-            if(issue["assignee"]["name"] in dictPeople):
+        if(issue["due_date"] is None) and (issue["assignee"] is not None):
+            if(issue["assignee"]["name"] in config.TEAM_MEMBERS):
                 user = "<"+config.TEAM_MEMBERS[issue["assignee"]["name"]]+">"
             else:
                 user = issue["assignee"]["name"]
 
             #textToBlame += user+": la tarea _"+issue["title"]+"_ no tiene due date, <"+issue["web_url"]+"| pincha aquí>\n"
             textToBlame += "{user}: la tarea _{title}_ no tiene due date, <{web_url}| pincha aquí> para solucionarlo\n".format(user=user,title=issue["title"], web_url=issue["web_url"])
-
+            
     postOnSlack(textToBlame)
 
 def blameDoingIssues():
@@ -171,26 +171,33 @@ def calculateClosingSprint():
     estimatedPoints = 0
     donePoints = 0
     dictTeamMembers = {}
+    errorM = ""
     for issue in jsonIssues:
-        if(issue["due_date"] is not None):
-            dateClosed = datetime.strptime(issue["due_date"], "%Y-%m-%d")
-            diff = datetime.now() - dateClosed
-            # If the issue was belongs on this closing sprint we process it
-            if(diff.days <= 7):
-                pointsC = countPoints(issue)
-                estimatedPoints += pointsC["estimated"]
-                donePoints += pointsC["done"]
-                tempDict = {"estimated" : 0, "done" : 0} if issue["assignee"]["name"] not in dictTeamMembers else dictTeamMembers[issue["assignee"]["name"]]
-                tempDict["estimated"] += pointsC["estimated"]
-                tempDict["done"] += pointsC["done"]
-                dictTeamMembers[issue["assignee"]["name"]] = tempDict
-
+        try: 
+            if(issue["due_date"] is not None):
+                dateClosed = datetime.strptime(issue["due_date"], "%Y-%m-%d")
+                diff = datetime.now() - dateClosed
+                # If the issue was belongs on this closing sprint we process it
+                if(diff.days <= 7):
+                    pointsC = countPoints(issue)
+                    estimatedPoints += pointsC["estimated"]
+                    donePoints += pointsC["done"]
+                    print(issue["title"])
+                    tempDict = {"estimated" : 0, "done" : 0} if issue["assignee"]["name"] not in dictTeamMembers else dictTeamMembers[issue["assignee"]["name"]]
+                    tempDict["estimated"] += pointsC["estimated"]
+                    tempDict["done"] += pointsC["done"]
+                    dictTeamMembers[issue["assignee"]["name"]] = tempDict
+        except TypeError:
+            print("Error "+issue["title"])
+            errorM += "La tarea *"+str(issue["title"])+"*  está mal configurada, por favor revisadla\n"
     stringMembers = ""
 
     for key, value in dictTeamMembers.items():
-        stringMembers += config.TEAM_MEMBERS[key]+": *"+str(dictTeamMembers[key]["estimated"])+"pts estimados*,  *"+str(dictTeamMembers[key]["done"])+" pts hechos*\n"
+        stringMembers += "<"+config.TEAM_MEMBERS[key]+">: *"+str(dictTeamMembers[key]["estimated"])+"pts estimados*,  *"+str(dictTeamMembers[key]["done"])+" pts hechos*\n"
 
-    postOnSlack("Atención, estas son las métricas de esta semana:\n *Tareas hechas: "+str(donePoints)+" puntos*\n *Estimadas: "+str(estimatedPoints)+"puntos*\n"+stringMembers)
+    postOnSlack("Atención, estas son las métricas de esta semana:\n *Tareas hechas: "+str(donePoints)+" puntos*\n *Estimadas: "+str(estimatedPoints)+"puntos*\n"+stringMembers+errorM)
+
+    
 
 def dailyIssuesCheck():
     blameDoingIssues()
